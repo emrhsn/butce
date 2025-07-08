@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InBody ve Kalori Takibi</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #4CAF50;
+      --primary-light: #81C784;
+      --primary-dark: #388E3C;
+      --secondary-color: #2196F3;
+      --secondary-light: #64B5F6;
+      --accent-color: #FF9800;
+      --accent-light: #FFB74D;
+      --success-color: #4CAF50;
+      --warning-color: #FF9800;
+      --error-color: #F44336;
+      
+      --bg-primary: #FAFAFA;
+      --bg-secondary: #FFFFFF;
+      --bg-card: #FFFFFF;
+      --bg-light: #F5F5F5;
+      --bg-accent: #E8F5E8;
+      
+      --text-primary: #2E2E2E;
+      --text-secondary: #616161;
+      --text-muted: #9E9E9E;
+      --text-light: #FFFFFF;
+      
+      --border-color: #E0E0E0;
+      --border-light: #F0F0F0;
+      --border-accent: #C8E6C9;
+      
+      --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.1);
+      --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.12);
+      --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Subtle background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 20%, rgba(76, 175, 80, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(33, 150, 243, 0.03) 0%, transparent 50%);
+      z-index: -1;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 2rem 0;
+      font-weight: 600;
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      color: var(--primary-color);
+      position: relative;
+    }
+
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+      border-radius: 2px;
+    }
+
+    a {
+  text-decoration: none;
+  color: inherit;
+}
+
+
+    #mainContainer {
+      display: grid;
+      grid-template-columns: 280px 1fr 280px;
+      height: calc(100vh - 120px);
+      gap: 1.5rem;
+      padding: 0 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: var(--transition);
+    }
+
+    .panel:hover {
+      box-shadow: var(--shadow-medium);
+      border-color: var(--border-accent);
+    }
+
+    #leftPanel, #rightPanel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #contentArea {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      align-items: center;
+      padding: 1rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary-color) transparent;
+    }
+
+    #contentArea::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #contentArea::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #contentArea::-webkit-scrollbar-thumb {
+      background: var(--primary-color);
+      border-radius: 3px;
+    }
+
+    .stickyHeader {
+      background: var(--bg-accent);
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-accent);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .clearButton {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--error-color);
+      color: var(--text-light);
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .clearButton:hover {
+      background: #d32f2f;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .checkboxContainer {
+      padding: 1rem 1.5rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .checkbox-item:hover {
+      background: var(--bg-light);
+      border-color: var(--border-accent);
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-right: 0.75rem;
+      accent-color: var(--primary-color);
+      cursor: pointer;
+    }
+
+    .checkbox-item label {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + label {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .filter-box {
+      width: 100%;
+      max-width: 900px;
+      margin: 1.5rem 0;
+      padding: 2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+    }
+
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .filter-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .filter-box label {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      gap: 0.5rem;
+    }
+
+    .filter-box input[type="date"] {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+
+    .filter-box input[type="date"]:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    }
+
+    .filter-btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .filter-btn.primary {
+      background: var(--primary-color);
+      color: var(--text-light);
+    }
+
+    .filter-btn.primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .filter-btn.secondary {
+      background: var(--bg-light);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .filter-btn.secondary:hover {
+      background: var(--bg-secondary);
+      border-color: var(--border-accent);
+    }
+
+    .filter-btn.accent {
+      background: var(--secondary-color);
+      color: var(--text-light);
+    }
+
+    .filter-btn.accent:hover {
+      background: #1976D2;
+    }
+
+    .filter-btn.success {
+      background: var(--success-color);
+      color: var(--text-light);
+    }
+
+    .filter-btn.success:hover {
+      background: var(--primary-dark);
+    }
+
+    .filter-btn.warning {
+      background: var(--warning-color);
+      color: var(--text-light);
+    }
+
+    .filter-btn.warning:hover {
+      background: #F57C00;
+    }
+
+    .filter-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-soft);
+    }
+
+    #chartContainer {
+      width: 100%;
+      max-width: 1000px;
+      background: var(--bg-card);
+      padding: 2rem;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--border-color);
+      height: 500px;
+      position: relative;
+    }
+
+    #chartContainer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Health-focused icons and styling */
+    .health-icon {
+      font-size: 1.1em;
+      margin-right: 0.25rem;
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      #mainContainer {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr;
+        height: auto;
+        gap: 1rem;
+        padding: 0 1rem;
+      }
+
+      #leftPanel, #rightPanel {
+        order: 2;
+      }
+
+      #contentArea {
+        order: 1;
+        padding: 0.5rem;
+      }
+
+      .stickyHeader {
+        position: static;
+        padding: 1rem;
+      }
+
+      .checkboxContainer {
+        max-height: 300px;
+        padding: 1rem;
+      }
+
+      .filter-box {
+        margin: 1rem 0;
+        padding: 1.5rem;
+      }
+
+      .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+      }
+
+      .filter-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      #chartContainer {
+        height: 400px;
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        margin: 1rem 0;
+      }
+
+      /* Mobile panels as collapsible cards */
+      .panel {
+        margin-bottom: 1rem;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        background: var(--bg-accent);
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--primary-color);
+        border-bottom: 1px solid var(--border-accent);
+      }
+
+      .panel-header::after {
+        content: '▼';
+        transition: transform 0.3s ease;
+        color: var(--primary-color);
+      }
+
+      .panel-header.collapsed::after {
+        transform: rotate(-90deg);
+      }
+
+      .panel-content {
+        max-height: 400px;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+
+      .panel-content.collapsed {
+        max-height: 0;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #mainContainer {
+        padding: 0 0.5rem;
+      }
+
+      .filter-box {
+        padding: 1rem;
+      }
+
+      #chartContainer {
+        height: 300px;
+        padding: 0.5rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+
+    /* Smooth scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-light);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-dark);
+    }
+
+    /* Health app specific styling */
+    .metric-group {
+      border-left: 3px solid var(--primary-color);
+      padding-left: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .metric-category {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .health-stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .health-stats:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <a href="https://docs.google.com/spreadsheets/d/1eLeR9qJSL2ens0hV57opLSvFEhPU6Xn7wKPww9KMNwA/edit?gid=0#gid=0" target="_blank" rel="noopener" >
+  <span class="health-icon">📥</span>
+</a>
+
+    InBody ve Kalori Takibi
+  </h1>
+  <div id="mainContainer">
+    <div id="leftPanel" class="panel">
+      <div class="stickyHeader">
+        <button class="clearButton" onclick="clearSelections()">
+          <span>🗑️</span>
+          Seçimleri Temizle
+        </button>
+      </div>
+      <div id="checkboxContainerLeft" class="checkboxContainer panel-content"></div>
+    </div>
+
+    <div id="contentArea">
+      <div id="dateFilter" class="filter-box">
+        <div class="filter-row">
+          <label>
+            <span class="health-icon">📅</span>
+            Başlangıç Tarihi
+            <input type="date" id="startDate">
+          </label>
+          <label>
+            <span class="health-icon">📅</span>
+            Bitiş Tarihi
+            <input type="date" id="endDate">
+          </label>
+          <button class="filter-btn primary" onclick="filterByDate()">
+            <span>🔍</span>
+            Filtrele
+          </button>
+          <button class="filter-btn secondary" onclick="resetFilter()">
+            <span>🔄</span>
+            Sıfırla
+          </button>
+        </div>
+        <div class="filter-row">
+          <button class="filter-btn accent" onclick="filterLastDays(7)">
+            <span>📊</span>
+            Son 1 Hafta
+          </button>
+          <button class="filter-btn success" onclick="filterLastDays(14)">
+            <span>📈</span>
+            Son 2 Hafta
+          </button>
+          <button class="filter-btn warning" onclick="filterLastDays(30)">
+            <span>📋</span>
+            Son 1 Ay
+          </button>
+        </div>
+      </div>
+
+      <div id="chartContainer">
+        <canvas id="myChart"></canvas>
+      </div>
+    </div>
+
+    <div id="rightPanel" class="panel">
+      <div class="stickyHeader">
+        <button class="clearButton" onclick="clearSelections()">
+          <span>🗑️</span>
+          Seçimleri Temizle
+        </button>
+      </div>
+      <div id="checkboxContainerRight" class="checkboxContainer panel-content"></div>
+    </div>
+  </div>
+
+  <script>
+    // ✅ BURAYA KENDİ CSV LİNKİNİ YAP
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXVH_pipzOkKOCuszYVNwNT0azpglseQnpsP1oYTTl7eQVtP1xw9LJLSwea_LlHqlF1L_HTiUKHvjV/pub?output=csv";
+
+    // ✅ Sol ve sağ panele ayrılacak sabit sütun listesi
+    const COLUMN_PAIRS = [
+      ["Kalori Girdi", "Toplam Ağırlık"],
+      ["Karbonhidrat", "Yağsız Ağırlık"],
+      ["Protein", "İskelet Kası Ağırlığı"],
+      ["Yağ", "Vücut Yağ Ağırlığı"],
+      ["Su", "Toplam Vücut Suyu"],
+      ["BKI", "Bel Kalça Oranı"],
+      ["Vücut Yağ Oranı", "İç Organ Yağ Düzeyi"],
+      ["Bazal Metabolizma", "InBody Puan"],
+      ["Sol Kol Kas", "Sol Kol Yağ"],
+      ["Sağ Kol Kas", "Sağ Kol Yağ"],
+      ["Gövde Kas", "Gövde Yağ"],
+      ["Sol Bacak Kas", "Sol Bacak Yağ"],
+      ["Sağ Bacak Kas", "Sağ Bacak Yağ"],
+      ["Bel Çevresi", "Göbek Çevresi"]
+    ];
+
+    let data = [];
+    let filteredData = [];
+    let headers = [];
+    let chart;
+
+    // Mobile panel toggle functionality
+    function togglePanel(side) {
+      if (window.innerWidth <= 768) {
+        const header = document.querySelector(`#${side}Panel .panel-header`);
+        const content = document.querySelector(`#${side}Panel .panel-content`);
+        
+        header.classList.toggle('collapsed');
+        content.classList.toggle('collapsed');
+      }
+    }
+
+    // Initialize collapsed state on mobile
+    function initializeMobileView() {
+      if (window.innerWidth <= 768) {
+        document.querySelectorAll('.panel-header').forEach(header => {
+          header.classList.add('collapsed');
+        });
+        document.querySelectorAll('.panel-content').forEach(content => {
+          content.classList.add('collapsed');
+        });
+      }
+    }
+
+    window.addEventListener('resize', initializeMobileView);
+
+    window.onload = () => {
+      initializeMobileView();
+      fetch(CSV_URL)
+        .then(res => res.text())
+        .then(csv => parseCSV(csv))
+        .catch(err => alert("CSV yüklenemedi: " + err));
+    };
+
+    function parseCSV(csv) {
+      const rows = csv.trim().split("\n").map(r => r.split(","));
+      headers = rows[0].map(h => h.trim());
+      data = rows.slice(1).map(row => {
+        const date = parseDate(row[0]);
+        return [date, ...row.slice(1).map(parseFloat)];
+      });
+      filteredData = data.slice();
+      showColumns();
+      clearChart();
+    }
+
+    function parseDate(str) {
+      if (str.includes(".")) {
+        const [d,m,y] = str.split(".").map(Number);
+        return new Date(y, m-1, d);
+      }
+      if (str.includes("-")) return new Date(str);
+      return new Date(str);
+    }
+
+    function formatDateLabel(date) {
+      return `${date.getDate().toString().padStart(2,'0')}.${(date.getMonth()+1).toString().padStart(2,'0')}.${date.getFullYear()}`;
+    }
+
+    function showColumns() {
+      const leftContainer = document.getElementById('checkboxContainerLeft');
+      const rightContainer = document.getElementById('checkboxContainerRight');
+      leftContainer.innerHTML = '';
+      rightContainer.innerHTML = '';
+
+      if (!headers || headers.length <= 1) return;
+
+      COLUMN_PAIRS.forEach(pair => {
+        const [leftName, rightName] = pair;
+
+        if (headers.includes(leftName)) {
+          const index = headers.indexOf(leftName);
+          const id = `col_${index}`;
+          const div = document.createElement('div');
+          div.className = 'checkbox-item';
+          div.innerHTML = `
+            <input type="checkbox" id="${id}" value="${index}" onchange="updateChart()">
+            <label for="${id}">${leftName}</label>
+          `;
+          leftContainer.appendChild(div);
+        }
+
+        if (headers.includes(rightName)) {
+          const index = headers.indexOf(rightName);
+          const id = `col_${index}`;
+          const div = document.createElement('div');
+          div.className = 'checkbox-item';
+          div.innerHTML = `
+            <input type="checkbox" id="${id}" value="${index}" onchange="updateChart()">
+            <label for="${id}">${rightName}</label>
+          `;
+          rightContainer.appendChild(div);
+        }
+      });
+    }
+
+    function filterByDate() {
+      const startInput = document.getElementById('startDate').value;
+      const endInput = document.getElementById('endDate').value;
+
+      if (!startInput || !endInput) {
+        alert("Başlangıç ve bitiş tarihlerini seçin.");
+        return;
+      }
+
+      const start = new Date(startInput);
+      const end = new Date(endInput);
+
+      filteredData = data.filter(row => {
+        const date = row[0];
+        return date >= start && date <= end;
+      });
+
+      updateChart();
+    }
+
+    function resetFilter() {
+      filteredData = data.slice();
+      document.getElementById('startDate').value = '';
+      document.getElementById('endDate').value = '';
+      updateChart();
+    }
+
+    function filterLastDays(days) {
+      if (data.length === 0) return;
+
+      const today = new Date();
+      const pastDate = new Date();
+      pastDate.setDate(today.getDate() - days);
+
+      filteredData = data.filter(row => {
+        const date = row[0];
+        return date >= pastDate && date <= today;
+      });
+
+      // Tarih inputlarını da güncelle
+      document.getElementById('startDate').value = pastDate.toISOString().split('T')[0];
+      document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
+      updateChart();
+    }
+
+    function clearSelections() {
+      for (let index = 1; index < headers.length; index++) {
+        const checkbox = document.getElementById(`col_${index}`);
+        if (checkbox) checkbox.checked = false;
+      }
+      clearChart();
+    }
+
+    function updateChart() {
+      const selectedIndexes = [];
+      for (let index = 1; index < headers.length; index++) {
+        if (document.getElementById(`col_${index}`)?.checked) {
+          selectedIndexes.push(index);
+        }
+      }
+      if (selectedIndexes.length === 0) {
+        clearChart();
+        return;
+      }
+
+      const labels = filteredData.map(row => formatDateLabel(row[0]));
+      const datasets = selectedIndexes.map((colIndex, i) => {
+        const color = getColor(i);
+        return {
+          label: headers[colIndex],
+          data: filteredData.map(row => parseFloat(row[colIndex])),
+          borderColor: color,
+          backgroundColor: color + '20',
+          fill: false,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: color,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          yAxisID: decideAxis(headers[colIndex])
+        };
+      });
+
+      if (chart) chart.destroy();
+      const ctx = document.getElementById('myChart').getContext('2d');
+      
+      // Set light theme for chart
+      Chart.defaults.color = '#616161';
+      Chart.defaults.borderColor = '#E0E0E0';
+      
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          },
+          plugins: {
+            legend: { 
+              position: 'top',
+              labels: {
+                color: '#2E2E2E',
+                font: { size: 12, weight: '500' },
+                padding: 20,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            title: { display: false },
+            datalabels: {
+              display: false
+            }
+          },
+          scales: {
+            x: {
+              type: 'category',
+              ticks: { 
+                autoSkip: true,
+                maxRotation: 45, 
+                minRotation: 45, 
+                font: { size: 10 },
+                color: '#616161'
+              },
+              grid: {
+                color: '#F0F0F0',
+                drawBorder: false
+              }
+            },
+            y: { 
+              beginAtZero: true, 
+              position: 'left',
+              ticks: { color: '#616161' },
+              grid: {
+                color: '#F0F0F0',
+                drawBorder: false
+              }
+            },
+            y2: { 
+              beginAtZero: true, 
+              position: 'right',
+              ticks: { color: '#616161' },
+              grid: { 
+                drawOnChartArea: false,
+                color: '#F0F0F0',
+                drawBorder: false
+              }
+            }
+          },
+          elements: { 
+            point: { 
+              radius: 4,
+              hoverRadius: 6
+            }
+          }
+        }
+      });
+    }
+
+    function clearChart() {
+      if (chart) chart.destroy();
+    }
+
+    function getColor(i) {
+      const colors = [
+        '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', 
+        '#F44336', '#00BCD4', '#8BC34A', '#FF5722',
+        '#3F51B5', '#009688', '#CDDC39', '#E91E63'
+      ];
+      return colors[i % colors.length];
+    }
+
+    function decideAxis(name) {
+      const lower = name.toLowerCase();
+      if (lower.includes('kalori') || lower.includes('enerji')) return 'y';
+      return 'y2';
+    }
+  </script>
+</body>
+</html>
